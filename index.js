@@ -14,15 +14,16 @@ const STATUS_TRIGGER = "Para editar";
 const STATUS_DONE = "Lanzado";
 const STATUS_NEW_BATCH = "Backlog";
 
-const RELATION_FIELD = "brief & Audios";
-const OBJETIVO_FIELD = "objetivo del test";
-const HIPOTESIS_FIELD = "hipótesis";
+const RELATION_FIELD = "Brief & Audios";
+const OBJETIVO_FIELD = "Objetivo del test";
+const HIPOTESIS_FIELD = "Hipótesis";
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
 let STATUS_TYPE_DB2 = "status";
 let STATUS_TYPE_DB3 = "status";
+let TITLE_FIELD_DB3 = "Name";
 
 async function notion(path, options = {}) {
   const res = await fetch(`${NOTION_API}${path}`, {
@@ -50,7 +51,10 @@ async function detectSchemas() {
   if (!db3.properties["Status"]) throw new Error("DB3: no encuentro propiedad 'Status'");
   STATUS_TYPE_DB2 = db2.properties["Status"].type;
   STATUS_TYPE_DB3 = db3.properties["Status"].type;
-  console.log(`Status DB2 tipo: ${STATUS_TYPE_DB2} | DB3 tipo: ${STATUS_TYPE_DB3}`);
+  for (const [name, prop] of Object.entries(db3.properties)) {
+    if (prop.type === "title") { TITLE_FIELD_DB3 = name; break; }
+  }
+  console.log(`Status DB2 tipo: ${STATUS_TYPE_DB2} | DB3 tipo: ${STATUS_TYPE_DB3} | Title DB3: "${TITLE_FIELD_DB3}"`);
 }
 
 function statusFilter(type, value) {
@@ -97,7 +101,7 @@ async function nextBatchNumber() {
   const pages = await queryAll(DB3_ID);
   let max = 0;
   for (const p of pages) {
-    const m = getTitle(p).match(/^\s*(\d+)\s*-/);
+    const m = getTitle(p).match(/^\s*(?:batch\s+)?(\d+)\s*-/i);
     if (m) {
       const n = parseInt(m[1], 10);
       if (n > max) max = n;
@@ -144,11 +148,11 @@ Script + análisis: ${concept.script || "(no especificado)"}`;
 }
 
 async function createBatch(concept, number, objetivo, hipotesis) {
-  const name = `${number} - ${concept.name}`;
+  const name = `Batch ${number} - ${concept.name}`;
   const body = {
     parent: { database_id: DB3_ID },
     properties: {
-      "Name": { title: [{ text: { content: name } }] },
+      [TITLE_FIELD_DB3]: { title: [{ text: { content: name } }] },
       "Status": statusValue(STATUS_TYPE_DB3, STATUS_NEW_BATCH),
       [RELATION_FIELD]: { relation: [{ id: concept.id }] },
       [OBJETIVO_FIELD]: { rich_text: [{ text: { content: objetivo } }] },
