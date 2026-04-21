@@ -1,0 +1,14 @@
+{
+  "name": "notion-batch-creator",
+  "version": "1.0.0",
+  "description": "Crea batches en DB3 a partir de conceptos en DB2 con objetivo/hipótesis generados por OpenAI (ISYRA)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "ISYRA",
+  "license": "MIT"
+}

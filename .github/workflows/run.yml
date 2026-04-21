@@ -1,0 +1,20 @@
+name: notion-batch-creator
+
+on:
+  schedule:
+    # 07:00 UTC = 09:00 Madrid (CEST verano) / 08:00 Madrid (CET invierno)
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node index.js
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
