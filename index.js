@@ -1,22 +1,32 @@
 // notion-batch-creator
-// Busca páginas en DB2 (Conceptos) con Status = "Para editar",
-// genera objetivo + hipótesis con OpenAI,
-// crea una página en DB3 (Batches) enlazada vía "brief & Audios" con Status = "Backlog"
-// y cambia el Status de la página original en DB2 a "Lanzado".
+// Dos flujos sobre DB2 (Conceptos):
+//
+// 1) Status = "Para editar"  → genera objetivo+hipótesis con OpenAI, crea Batch en DB3
+//    con Status "Backlog" enlazado vía "Brief & Audios", y pasa el concepto a "Lanzado".
+//
+// 2) Status = "En desarrollo" Y "Drive Brief" vacío → crea carpeta en Drive (dentro de
+//    BRIEF), sub-carpetas "AUDIOS <titulo>" y "VIDEOS EDITADOS", y guarda la URL en
+//    "Drive Brief".
+
+const crypto = require("node:crypto");
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GDRIVE_SERVICE_ACCOUNT_JSON = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
 
 const DB2_ID = "310ca875e528807a8f7dfb4d8e369f97"; // Conceptos & Ángulos
 const DB3_ID = "310ca875e528803b8300c74760eadedc"; // Batches / Campañas
+const GDRIVE_BRIEF_FOLDER_ID = "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
 
 const STATUS_TRIGGER = "Para editar";
 const STATUS_DONE = "Lanzado";
 const STATUS_NEW_BATCH = "Backlog";
+const STATUS_DRIVE_TRIGGER = "En desarrollo";
 
 const RELATION_FIELD = "Brief & Audios";
 const OBJETIVO_FIELD = "Objetivo del test";
 const HIPOTESIS_FIELD = "Hipótesis";
+const DRIVE_BRIEF_FIELD = "Drive Brief";
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
@@ -24,6 +34,7 @@ const NOTION_VERSION = "2022-06-28";
 let STATUS_TYPE_DB2 = "status";
 let STATUS_TYPE_DB3 = "status";
 let TITLE_FIELD_DB3 = "Name";
+let DRIVE_BRIEF_TYPE = "rich_text";
 
 async function notion(path, options = {}) {
   const res = await fetch(`${NOTION_API}${path}`, {
@@ -54,7 +65,9 @@ async function detectSchemas() {
   for (const [name, prop] of Object.entries(db3.properties)) {
     if (prop.type === "title") { TITLE_FIELD_DB3 = name; break; }
   }
-  console.log(`Status DB2 tipo: ${STATUS_TYPE_DB2} | DB3 tipo: ${STATUS_TYPE_DB3} | Title DB3: "${TITLE_FIELD_DB3}"`);
+  const driveProp = db2.properties[DRIVE_BRIEF_FIELD];
+  if (driveProp) DRIVE_BRIEF_TYPE = driveProp.type;
+  console.log(`Status DB2: ${STATUS_TYPE_DB2} | DB3: ${STATUS_TYPE_DB3} | Title DB3: "${TITLE_FIELD_DB3}" | Drive Brief: ${DRIVE_BRIEF_TYPE}`);
 }
 
 function statusFilter(type, value) {
@@ -171,22 +184,76 @@ async function setDb2Status(pageId, value) {
   });
 }
 
-async function main() {
-  if (!NOTION_TOKEN) throw new Error("Falta NOTION_TOKEN");
-  if (!OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
+// --- Google Drive (service account, RS256 JWT, zero-dep) ---
 
-  await detectSchemas();
+function base64url(input) {
+  const buf = typeof input === "string" ? Buffer.from(input) : input;
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
-  console.log(`Buscando conceptos en DB2 con Status = "${STATUS_TRIGGER}"...`);
-  const pages = await queryAll(
-    DB2_ID,
-    statusFilter(STATUS_TYPE_DB2, STATUS_TRIGGER)
-  );
-  console.log(`Conceptos encontrados: ${pages.length}`);
-  if (pages.length === 0) {
-    console.log("Nada que procesar. Fin.");
-    return;
-  }
+async function getDriveToken() {
+  const creds = JSON.parse(GDRIVE_SERVICE_ACCOUNT_JSON);
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claim = base64url(JSON.stringify({
+    iss: creds.client_email,
+    scope: "https://www.googleapis.com/auth/drive",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600
+  }));
+  const signInput = `${header}.${claim}`;
+  const signature = crypto.createSign("RSA-SHA256").update(signInput).sign(creds.private_key);
+  const jwt = `${signInput}.${base64url(signature)}`;
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt
+    })
+  });
+  if (!res.ok) throw new Error(`Drive token ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return data.access_token;
+}
+
+async function driveCreateFolder(token, name, parentId) {
+  const res = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId]
+    })
+  });
+  if (!res.ok) throw new Error(`Drive create "${name}" ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function setDriveBrief(pageId, url) {
+  const value = DRIVE_BRIEF_TYPE === "url"
+    ? { url }
+    : { rich_text: [{ text: { content: url, link: { url } } }] };
+  return notion(`/pages/${pageId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      properties: { [DRIVE_BRIEF_FIELD]: value }
+    })
+  });
+}
+
+// --- Flujos ---
+
+async function processBatches() {
+  console.log(`\n=== Flujo 1: conceptos "${STATUS_TRIGGER}" → crear Batch ===`);
+  const pages = await queryAll(DB2_ID, statusFilter(STATUS_TYPE_DB2, STATUS_TRIGGER));
+  console.log(`Encontrados: ${pages.length}`);
+  if (pages.length === 0) return { ok: 0, fail: 0 };
 
   let n = await nextBatchNumber();
   console.log(`Siguiente número de batch: ${n}`);
@@ -200,27 +267,78 @@ async function main() {
       estructura: getRichText(page, "Estructura"),
       script: getRichText(page, "SCRIPT + ANÁLISIS")
     };
-    if (!concept.name) {
-      console.log(`⚠️  Página ${page.id} sin título, saltando`);
-      continue;
-    }
+    if (!concept.name) { console.log(`⚠️  ${page.id} sin título, saltando`); continue; }
     try {
-      console.log(`\n→ ${concept.name}`);
+      console.log(`→ ${concept.name}`);
       const ai = await generateIA(concept);
       console.log(`   objetivo : ${ai.objetivo}`);
       console.log(`   hipótesis: ${ai.hipotesis}`);
       await createBatch(concept, n, ai.objetivo, ai.hipotesis);
       await setDb2Status(page.id, STATUS_DONE);
-      console.log(`   ✅ Batch #${n} creado y DB2 marcado como "${STATUS_DONE}"`);
-      n++;
+      console.log(`   ✅ Batch #${n} creado`);
+      n++; ok++;
+    } catch (err) {
+      console.error(`   ❌ ${err.message}`);
+      fail++;
+    }
+  }
+  return { ok, fail };
+}
+
+async function processDriveFolders() {
+  console.log(`\n=== Flujo 2: conceptos "${STATUS_DRIVE_TRIGGER}" sin Drive → crear carpetas ===`);
+  if (!GDRIVE_SERVICE_ACCOUNT_JSON) {
+    console.log("GDRIVE_SERVICE_ACCOUNT_JSON no configurado, saltando flujo Drive.");
+    return { ok: 0, fail: 0 };
+  }
+  const filter = {
+    and: [
+      statusFilter(STATUS_TYPE_DB2, STATUS_DRIVE_TRIGGER),
+      { property: DRIVE_BRIEF_FIELD, [DRIVE_BRIEF_TYPE]: { is_empty: true } }
+    ]
+  };
+  const pages = await queryAll(DB2_ID, filter);
+  console.log(`Encontrados: ${pages.length}`);
+  if (pages.length === 0) return { ok: 0, fail: 0 };
+
+  const token = await getDriveToken();
+  let ok = 0, fail = 0;
+  for (const page of pages) {
+    const title = getTitle(page);
+    if (!title) { console.log(`⚠️  ${page.id} sin título, saltando`); continue; }
+    try {
+      console.log(`→ ${title}`);
+      const parent = await driveCreateFolder(token, title, GDRIVE_BRIEF_FOLDER_ID);
+      await driveCreateFolder(token, `AUDIOS ${title}`, parent.id);
+      await driveCreateFolder(token, "VIDEOS EDITADOS", parent.id);
+      const url = `https://drive.google.com/drive/folders/${parent.id}`;
+      await setDriveBrief(page.id, url);
+      console.log(`   ✅ ${url}`);
       ok++;
     } catch (err) {
       console.error(`   ❌ ${err.message}`);
       fail++;
     }
   }
-  console.log(`\nResumen: ${ok} creados, ${fail} fallidos.`);
-  if (fail > 0) process.exit(1);
+  return { ok, fail };
+}
+
+async function main() {
+  if (!NOTION_TOKEN) throw new Error("Falta NOTION_TOKEN");
+  if (!OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
+
+  await detectSchemas();
+
+  const results = { batches: { ok: 0, fail: 0 }, drive: { ok: 0, fail: 0 } };
+  try { results.batches = await processBatches(); }
+  catch (err) { console.error("Flujo Batches falló:", err.message); results.batches.fail++; }
+  try { results.drive = await processDriveFolders(); }
+  catch (err) { console.error("Flujo Drive falló:", err.message); results.drive.fail++; }
+
+  console.log(`\n=== Resumen ===`);
+  console.log(`Batches: ${results.batches.ok} ok, ${results.batches.fail} fail`);
+  console.log(`Drive  : ${results.drive.ok} ok, ${results.drive.fail} fail`);
+  if (results.batches.fail + results.drive.fail > 0) process.exit(1);
 }
 
 main().catch(err => {
