@@ -19,9 +19,9 @@ const DB3_ID = "310ca875e528803b8300c74760eadedc"; // Batches / Campañas
 const GDRIVE_BRIEF_FOLDER_ID = "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
 
 const STATUS_TRIGGER = "Para editar";
-const STATUS_DONE = "Lanzado";
+const STATUS_DONE = "lanzado";
 const STATUS_NEW_BATCH = "Backlog";
-const STATUS_DRIVE_TRIGGER = "En desarrollo";
+const STATUS_DRIVE_TRIGGER = "En desarrollo | Crear Brief";
 
 const RELATION_FIELD = "Brief & Audios";
 const OBJETIVO_FIELD = "Objetivo del test";
