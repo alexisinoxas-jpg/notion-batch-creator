@@ -14,9 +14,12 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GDRIVE_SERVICE_ACCOUNT_JSON = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
 
-const DB2_ID = "310ca875e528807a8f7dfb4d8e369f97"; // Conceptos & Ángulos
-const DB3_ID = "310ca875e528803b8300c74760eadedc"; // Batches / Campañas
-const GDRIVE_BRIEF_FOLDER_ID = "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
+// Por defecto ISYRA; otra marca (ej. Amelí Balance) los cambia por variables de entorno
+// desde su propio workflow.
+const DB2_ID = process.env.DB2_ID || "310ca875e528807a8f7dfb4d8e369f97"; // Conceptos & Ángulos
+const DB3_ID = process.env.DB3_ID || "310ca875e528803b8300c74760eadedc"; // Batches / Campañas
+const GDRIVE_BRIEF_FOLDER_ID = process.env.GDRIVE_BRIEF_FOLDER_ID || "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
+const BRAND_CONTEXT = process.env.BRAND_CONTEXT || "ISYRA (nicho caída capilar, Chile)";
 
 const STATUS_TRIGGER = "Para editar";
 const STATUS_DONE = "lanzado";
@@ -124,7 +127,7 @@ async function nextBatchNumber() {
 }
 
 async function generateIA(concept) {
-  const prompt = `Eres asistente de un media buyer de Meta Ads para ISYRA (nicho caída capilar, Chile).
+  const prompt = `Eres asistente de un media buyer de Meta Ads para ${BRAND_CONTEXT}.
 A partir del siguiente concepto creativo, genera:
 1) "objetivo": el objetivo del test en UNA sola línea (máx 140 caracteres).
 2) "hipotesis": la hipótesis en UNA sola línea (máx 140 caracteres).

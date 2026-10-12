@@ -1,0 +1,24 @@
+name: notion-batch-creator (Amelí Balance)
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node index.js
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          DB2_ID: "3f7ca875e52881769b59e70ceda759b2"
+          DB3_ID: "3f7ca875e52881ceb2d9cd79bdd2e8e4"
+          GDRIVE_BRIEF_FOLDER_ID: "1uK3VmeKYlVdZtz8fhW668BJULrDL2_ur"
+          BRAND_CONTEXT: "Amelí Balance (gomitas de magnesio bisglicinato quelado sabor berries para personas que no duermen, acumulan grasa abdominal y sienten que su cuerpo cambió sin razón aparente)"
