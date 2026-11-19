@@ -19,6 +19,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
           DB2_ID: "3f7ca875e52881769b59e70ceda759b2"
+          STATUS_TRIGGER: "Para editar"
           DB3_ID: "3f7ca875e52881ceb2d9cd79bdd2e8e4"
           GDRIVE_BRIEF_FOLDER_ID: "1uK3VmeKYlVdZtz8fhW668BJULrDL2_ur"
           BRAND_CONTEXT: "Amelí Balance (gomitas de magnesio bisglicinato quelado sabor berries para personas que no duermen, acumulan grasa abdominal y sienten que su cuerpo cambió sin razón aparente)"

@@ -21,7 +21,7 @@ const DB3_ID = process.env.DB3_ID || "310ca875e528803b8300c74760eadedc"; // Batc
 const GDRIVE_BRIEF_FOLDER_ID = process.env.GDRIVE_BRIEF_FOLDER_ID || "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
 const BRAND_CONTEXT = process.env.BRAND_CONTEXT || "ISYRA (nicho caída capilar, Chile)";
 
-const STATUS_TRIGGER = "Para editar | Loom Creado";
+const STATUS_TRIGGER = process.env.STATUS_TRIGGER || "Para editar | Loom Creado";
 const STATUS_DONE = "lanzado";
 const STATUS_NEW_BATCH = "Backlog";
 const STATUS_DRIVE_TRIGGER = "En desarrollo | Crear Brief";
