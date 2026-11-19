@@ -1,7 +1,7 @@
 // notion-batch-creator
 // Dos flujos sobre DB2 (Conceptos):
 //
-// 1) Status = "Para editar"  → genera objetivo+hipótesis con OpenAI, crea Batch en DB3
+// 1) Status = "Para editar | Loom Creado"  → genera objetivo+hipótesis con OpenAI, crea Batch en DB3
 //    con Status "Backlog" enlazado vía "Brief & Audios", y pasa el concepto a "Lanzado".
 //
 // 2) Status = "En desarrollo" Y "Drive Brief" vacío → crea carpeta en Drive (dentro de
@@ -21,7 +21,7 @@ const DB3_ID = process.env.DB3_ID || "310ca875e528803b8300c74760eadedc"; // Batc
 const GDRIVE_BRIEF_FOLDER_ID = process.env.GDRIVE_BRIEF_FOLDER_ID || "15LSwFbAeSB5fOhF6uta7XJnquPjkEWC1";
 const BRAND_CONTEXT = process.env.BRAND_CONTEXT || "ISYRA (nicho caída capilar, Chile)";
 
-const STATUS_TRIGGER = "Para editar";
+const STATUS_TRIGGER = "Para editar | Loom Creado";
 const STATUS_DONE = "lanzado";
 const STATUS_NEW_BATCH = "Backlog";
 const STATUS_DRIVE_TRIGGER = "En desarrollo | Crear Brief";
